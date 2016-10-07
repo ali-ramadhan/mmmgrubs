@@ -1,2 +1,2 @@
-# grubs
-GRUBS: (Molecular) Geometry reconstruction using Bayesian statistics
+# mrgrubs
+MRGRUBS: MoleculaR movies and Geometry Reconstruction Using Bayesian Statistics
