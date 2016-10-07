@@ -1,2 +1,2 @@
-# mrgrubs
-MRGRUBS: MoleculaR movies and Geometry Reconstruction Using Bayesian Statistics
+# mmmgrubs
+MMMGRUBS: Molecular Motion Movies and Geometry Reconstruction Using Bayesian Statistics
