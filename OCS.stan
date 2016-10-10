@@ -5,12 +5,16 @@
 functions {
   // Must always use this very specific signature, even if you don't use all
   // the arguments.
-  real[] HamiltonsEqs(real t, real[] q, real[] theta, real[] x_r, int[] x_i) {
+  real[] hamiltonsEqs(real t, real[] q, real[] theta, real[] x_r, int[] x_i) {
     /* Notes: q[1:9] = [x1, y1, z1, ..., x3, y3, z3]
      *        q[10:18] = [px1, py1, pz1, ..., px3, py3, pz3]
      */
     
-    real dqdt[18]; 
+    real dqdt[18];
+    real amu; real e; real k;
+    real m1; real m2; real m3;
+    real q1; real q2; real q3;
+    real r12; real r13; real r23;
     
     amu = 1.66053886e-27; // [kg], atomic mass unit
     e   = 1.60217646e-19; // [C], elementary charge
@@ -53,44 +57,100 @@ functions {
   }
   
   real deg2rad(real deg) {
-    return deg * (pi/180);
+    return deg * (pi()/180);
   }
   
-  // ...
-  real[3] coulombExplode(real r12, real r23, real theta) {
+  vector coulombExplode(real r12, real r23, real theta,
+                        real t0, real[] times, real[] x_r, int[] x_i) {
+    /* Notes: q[1:9] = [x1, y1, z1, ..., x3, y3, z3]
+     *        q[10:18] = [px1, py1, pz1, ..., px3, py3, pz3]
+     */
+    
+    real q0[18];
+    real q[245,18];
+    real par[0];
+
+/*    real rel_tol;
+    real abs_tol;
+    real max_num_steps;*/
+    
+    vector[3] p1; vector[3] p2; vector[3] p3;
+    matrix[2,2] R;
+    real theta_2x;
+    vector[3] p;
+    
     // Place the first atom to the left of central atom.
-    x1 = -r12;
-    y1 = 0;
-    z1 = 0;
+    q0[1] = -r12;
+    q0[2] = 0;
+    q0[3] = 0;
     
     //Place the central atom at the origin.
-    x2 = 0;
-    y2 = 0;
-    z2 = 0;
+    q0[4] = 0;
+    q0[5] = 0;
+    q0[6] = 0;
     
     // Place the third atom to the right of the central taking into the account
     // the angle between the two bond lengths.
-    x3 = r23 * cos(deg2rad(180 - theta));
-    y3 = r23 * sin(deg2rad(180 - theta));
-    z3 = 0;
+    q0[7] = r23 * cos(deg2rad(180 - theta));
+    q0[8] = r23 * sin(deg2rad(180 - theta));
+    q0[9] = 0;
     
-    g = [x_1 y_1 z_1 x_2 y_2 z_2 x_3 y_3 z_3];
-    p_0 = zeros(1,9);
+    // zero initial momentum
+    q0[10] = 0; q0[11] = 0; q0[12] = 0;
+    q0[13] = 0; q0[14] = 0; q0[15] = 0;
+    q0[16] = 0; q0[17] = 0; q0[18] = 0;
     
-    y_hat = integrate_ode_bdf(sho, y0, t0, ts, theta, x_r, x_i,rel_tol, abs_tol, max_steps);
+/*    rel_tol = 1e-6;
+    abs_tol = 1e-27;
+    max_num_steps = 1000;*/
     
+    q = integrate_ode_rk45(hamiltonsEqs, q0, t0, times, par, x_r, x_i);
+/*    q = integrate_ode_rk45(hamiltonsEqs, q0, t0, times, par, x_r, x_i,
+                              rel_tol, abs_tol, max_num_steps);*/
+    
+    // Extract each atom's momentum into 2D vectors in preparation to rotate.
+    p1 = to_vector(q[245, 10:11]);
+    p2 = to_vector(q[245, 13:14]);
+    p3 = to_vector(q[245, 16:17]);
+    
+    // Put each momentum into column vector form so we can use vanilla matrix
+    // multiplication.
+    // p1 = p1'; p2 = p2'; p3 = p3';
+    
+    // Calculate the angle between the central atom and the +x-axis then rotate
+    // the three momentum vectors back towards the origin by that much so that
+    // the central's momentum is always along the +x-axis.
+    theta_2x = atan2(p2[2], p2[1]);
+    R[1,1] = cos(-theta_2x); R[1,2] = -sin(-theta_2x);
+    R[2,1] = sin(-theta_2x); R[2,2] =  cos(-theta_2x);
+    p1 = R*p1;
+    p2 = R*p2;
+    p3 = R*p3;
+    
+    // Put everything back into a row vector.
+    // p1 = p1'; p2 = p2'; p3 = p3';
+    
+    // Set the z components (and also y in case of carbon) to zero so they all
+    // have exactly the same value rather than 0.0000 and -0.0000, etc.
+    // p1[3] = 0;
+    // p2[2] = 0; p_2[3] = 0;
+    // p3[3] = 0;
+    
+    // We should have that p3 = - (p2 + p1) by conservation of momentum so
+    // we're just going to use throw it out basically and only use the
+    // independent momentum values (p1x, p1y, p2x) in our phase 1 model.
+    p[1] = p1[1]; p[2] = p1[2]; p[3] = p2[1];
+    return p;
   }
 }
 
 data {
   int<lower=1> n; // number of CEI events observed (n=1 for now lol)
-  real p[3]; // (p1x, p2x, p2y) measurements
-}
-
-transformed data {
-  // Required empty values for the ODE solver function call.
-  real x_r[0];
-  int x_i[0];
+  vector[3] p; // (p1x, p2x, p2y) measurements
+  real<lower=0> x_r[3]; // masses of the three atoms in [amu].
+  int<lower=1> x_i[3];  // charges of the three atoms in [e].
+  real t0;
+  real times[245]; // all the time steps for the ODE (I know...)
 }
 
 parameters {
@@ -102,28 +162,20 @@ parameters {
    * back to this. Might not be a problem though as other models seem to do
    * something similar.
    */
-   
    real<lower=0> sigma;
 }
 
 model {
+  vector[3] p_hat;
+  
   // "Priors" on latent variables from quantum chemistry simulations
   r12 ~ normal(114, 12.4);
   r23 ~ normal(163, 12.4);
   theta ~ normal(174.4, 3.4);
   
-  // Weakly informative priors (give it a try)
+  // Weakly informative priors (give it a try?)
   
   // Likelihood
-  p_hat = CoulombExplode(r12, r23, theta);
-  for (i in 1:n)
-    p[i] ~ normal(p_hat, sigma);
-  
-  real y_hat[T,2];
-  sigma ~ cauchy(0, 2.5);
-  theta ~ normal(0, 1);
-  y0 ~ normal(0, 1);
-  y_hat = integrate_ode_rk45(sho, y0, t0, ts, theta, x_r, x_i);
-  for (t in 1:T)
-    y[t] ~ normal(y_hat[t], sigma);
+  p_hat = coulombExplode(r12, r23, theta, t0, times, x_r, x_i);
+  p ~ normal(p_hat, sigma);
 }
