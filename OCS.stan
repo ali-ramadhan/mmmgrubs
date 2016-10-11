@@ -16,6 +16,8 @@ functions {
     real q1; real q2; real q3;
     real r12; real r13; real r23;
     
+    print("Entering hamiltonEqs()...");
+    
     amu = 1.66053886e-27; // [kg], atomic mass unit
     e   = 1.60217646e-19; // [C], elementary charge
     k   = 8.987551e9;     // [N m^2 / C^2], electrostatic constant
@@ -53,6 +55,7 @@ functions {
     dqdt[17] =  k*q3*( q1*(q[8]-q[2])/pow(r13,3) + q2*(q[8]-q[5])/pow(r23,3) );
     dqdt[18] =  k*q3*( q1*(q[9]-q[3])/pow(r13,3) + q2*(q[9]-q[6])/pow(r23,3) );
     
+    print("Leaving hamiltonEqs()...");
     return dqdt;
   }
   
@@ -79,8 +82,16 @@ functions {
     real theta_2x;
     vector[3] p;
     
+    real r12m;
+    real r23m;
+    
+    r12m = r12*1e-12; // [pm] -> [m]
+    r23m = r23*1e-12; // [pm] -> [m]
+    
+    print("Entering coulombExplode()...");
+    
     // Place the first atom to the left of central atom.
-    q0[1] = -r12;
+    q0[1] = -r12m;
     q0[2] = 0;
     q0[3] = 0;
     
@@ -91,8 +102,8 @@ functions {
     
     // Place the third atom to the right of the central taking into the account
     // the angle between the two bond lengths.
-    q0[7] = r23 * cos(deg2rad(180 - theta));
-    q0[8] = r23 * sin(deg2rad(180 - theta));
+    q0[7] = r23m * cos(deg2rad(180 - theta));
+    q0[8] = r23m * sin(deg2rad(180 - theta));
     q0[9] = 0;
     
     // zero initial momentum
@@ -140,6 +151,7 @@ functions {
     // we're just going to use throw it out basically and only use the
     // independent momentum values (p1x, p1y, p2x) in our phase 1 model.
     p[1] = p1[1]; p[2] = p1[2]; p[3] = p2[1];
+    print("Leaving coulombExplode()...")
     return p;
   }
 }
@@ -165,7 +177,7 @@ parameters {
    real<lower=0> sigma;
 }
 
-model {
+/*model {
   vector[3] p_hat;
   
   // "Priors" on latent variables from quantum chemistry simulations
@@ -178,4 +190,19 @@ model {
   // Likelihood
   p_hat = coulombExplode(r12, r23, theta, t0, times, x_r, x_i);
   p ~ normal(p_hat, sigma);
+}*/
+
+model {
+}
+
+generated quantities {
+  vector[3] y_hat;
+  
+  print("Entering generated quantities...")
+  y_hat <- coulombExplode(r12, r23, theta, t0, times, x_r, x_i);
+
+/*  for (t in 1:T) {
+    y_hat[t,1] <- y_hat[t,1] + normal_rng(0,sigma[1]);
+    y_hat[t,2] <- y_hat[t,2] + normal_rng(0,sigma[2]);
+  }*/
 }
