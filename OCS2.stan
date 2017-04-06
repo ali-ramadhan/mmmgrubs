@@ -11,7 +11,7 @@ functions {
      */
     
     real dqdt[18];
-    real amu; real e; real k;
+    real amu; real e0; real k;
     real m1; real m2; real m3;
     real q1; real q2; real q3;
     real r12; real r13; real r23;
@@ -59,12 +59,11 @@ functions {
     return dqdt;
   }
 
- 
+/* 
   real deg2rad(real deg) {
     return deg * (pi()/180);
   }
 
-/*
   real[] coulombExplode(real r12, real r23, real theta, real t0, real[] times, real[] x_r, int[] x_i) {
     // Notes: q[1:9] = [x1, y1, z1, ..., x3, y3, z3]
     //        q[10:18] = [px1, py1, pz1, ..., px3, py3, pz3]
@@ -158,76 +157,23 @@ functions {
     return to_array_1d(p);
   }
 */
-
-  real[] coulombExplode2(real r12, real r23, real theta, real t0, real[] times, real[] x_r, int[] x_i) {
-    // Notes: q[1:9] = [x1, y1, z1, ..., x3, y3, z3]
-    //        q[10:18] = [px1, py1, pz1, ..., px3, py3, pz3]
-    //
-    
-    print("Entering coulombExplode()...");
-    
-    real q0[18];
-    real q[10,18];
-    real par[3];
-    
-    vector[3] p1; vector[3] p2; vector[3] p3;
-    vector[3] p;
-    
-    real r12m;
-    real r23m;
-    
-    par[1] = r12;
-    par[2] = r23;
-    par[3] = theta;
-    
-    r12m = r12*1e-12; // [pm] -> [m]
-    r23m = r23*1e-12; // [pm] -> [m]
-    
-    // Place the first atom to the left of central atom.
-    q0[1] = -r12m;
-    q0[2] = 0;
-    q0[3] = 0;
-    
-    //Place the central atom at the origin.
-    q0[4] = 0;
-    q0[5] = 0;
-    q0[6] = 0;
-    
-    // Place the third atom to the right of the central taking into the account
-    // the angle between the two bond lengths.
-    q0[7] = r23m * cos(deg2rad(180 - theta));
-    q0[8] = r23m * sin(deg2rad(180 - theta));
-    q0[9] = 0;
-    
-    // zero initial momentum
-    q0[10] = 0; q0[11] = 0; q0[12] = 0;
-    q0[13] = 0; q0[14] = 0; q0[15] = 0;
-    q0[16] = 0; q0[17] = 0; q0[18] = 0;
-    
-    q = integrate_ode_rk45(hamiltonsEqs, q0, t0, times, par, x_r, x_i);
-    
-    // Sort of just picking random values lol.
-    p[1] = q[5, 10];
-    p[2] = q[5, 11];
-    p[3] = q[5, 13];
-    
-    print("Leaving coulombExplode()...")
-    
-    return to_array_1d(p);
-  }
 }
 
 data {
   // int<lower=1> n; // number of CEI events observed (n=1 for now lol)
-  real p[3]; // (p1x, p2x, p2y) measurements
+  // real p[3]; // (p1x, p2x, p2y) measurements
   real<lower=0> x_r[3]; // masses of the three atoms in [amu].
   int<lower=1> x_i[3];  // charges of the three atoms in [e].
   real t0;
   real times[10]; // all the time steps for the ODE (I know...)
-  real r12;
-  real r23;
-  real theta;
+  real pars[3]; // (r12, r23, theta) for rk45
+  real q0[18]; // initial conditions
 }
+
+/*
+transformed data {
+}
+*/
 
 /*
 parameters {
@@ -262,10 +208,13 @@ model {
 }
 
 generated quantities {
-  real p_hat[3];
+  real q_hat[10,18];
   
   print("Entering generated quantities...")
-  p_hat = coulombExplode(r12, r23, theta, t0, times, x_r, x_i);
+  
+  q_hat = integrate_ode_rk45(hamiltonsEqs, q0, t0, times, pars, x_r, x_i);
+  
+  // p_hat = coulombExplode2(r12, r23, theta, t0, times, x_r, x_i);
 
 /*  for (t in 1:T) {
     y_hat[t,1] <- y_hat[t,1] + normal_rng(0,sigma[1]);
