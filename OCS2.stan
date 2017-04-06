@@ -16,7 +16,7 @@ functions {
     real q1; real q2; real q3;
     real r12; real r13; real r23;
     
-    print("Entering hamiltonEqs()...");
+    //print("Entering hamiltonEqs()...");
     
     amu = 1.66053886e-27; // [kg], atomic mass unit
     e0  = 1.60217646e-19; // [C], elementary charge
@@ -55,7 +55,7 @@ functions {
     dqdt[17] =  k*q3*( q1*(q[8]-q[2])/pow(r13,3) + q2*(q[8]-q[5])/pow(r23,3) );
     dqdt[18] =  k*q3*( q1*(q[9]-q[3])/pow(r13,3) + q2*(q[9]-q[6])/pow(r23,3) );
     
-    print("Leaving hamiltonEqs()...");
+    //print("Leaving hamiltonEqs()...");
     return dqdt;
   }
 
@@ -210,7 +210,7 @@ model {
 generated quantities {
   real q_hat[10,18];
   
-  print("Entering generated quantities...")
+  // print("Entering generated quantities...")
   
   q_hat = integrate_ode_rk45(hamiltonsEqs, q0, t0, times, pars, x_r, x_i);
   
